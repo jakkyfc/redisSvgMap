@@ -10,6 +10,16 @@ Unlike [SVGMapTools](https://github.com/svgmap/svgMapTools/), this software prov
 
 Python3 and Redis (and pip3 install redis hiredis numpy pillow flask)
 
+### RHEL
+
+`pip3 install -r requirements.txt`
+`pip3 install -r requirements-dev.txt`
+
+### Ubuntu24.04+
+
+`python3 -m venv redissvgmap`
+`python3 -m venv v-pyton3`
+`. v-pyton3/bin/activate`
 `pip3 install -r requirements.txt`
 `pip3 install -r requirements-dev.txt`
 
