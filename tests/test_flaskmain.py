@@ -8,8 +8,10 @@ from flaskmain import app, getData, redisRegistThread
 from unittest.mock import MagicMock, patch
 import redis
 import pickle
+import fakeredis
 
 class TestOfFlaskApps(unittest.TestCase):
+  mk_fakeredis = fakeredis.FakeStrictRedis()
   def setUp(self):
     self.main = app.test_client()
 
@@ -26,23 +28,22 @@ class TestOfFlaskApps(unittest.TestCase):
     response = self.main.get("/dataset/show")
     self.assertEqual(response.status_code, 200)
 
-  @patch("flaskmain.Csv2redisClass", autospec = True)
-  def test_buildLayer(self,mock_c2r):
-    mock_c2r.return_value.registSchema.return_value = True
+  @patch("redis.Redis", return_value=mk_fakeredis)
+  def test_buildLayer(self,mock_redis):
+    # mock_c2r.return_value.registSchema.return_value = True
     postData = {'schema': ['title', 'metadata', 'latitude', 'longitude'], 'type': [2, 2, 1, 1], 'latCol': 2, 'lngCol': 3, 'titleCol': 0, 'idCol': -1, 'namespace': 'abcdefg_', 'name': 'sample', 'created': 1703751389604, 'defaultIcon': 8, 'defaultIconPath': 'pngs/pin_red_cross.png'}
     response = self.main.post("/svgmap/buildLayer", data=json.dumps(postData), content_type='application/json')
     self.assertEqual(response.status_code, 200)
     self.assertEqual(response.data, b"OK")
     response.close()
-    mock_c2r.return_value.registSchema.return_value = False
+    # mock_c2r.return_value.registSchema.return_value = False
     response = self.main.post("/svgmap/buildLayer", data=json.dumps(postData), content_type='application/json')
     self.assertEqual(response.status_code, 200)
     self.assertEqual(response.data, b"DUPLICATED ERROR")
     response.close()
 
-
-  @patch("flaskmain.Csv2redisClass", autospec = True)
-  def test_access2IndexFile(self, mock_c2r):
+  @patch("redis.Redis", return_value=mk_fakeredis)
+  def test_access2IndexFile(self, mock_redis):
     response = self.main.get("/svgmap/index.html")
     self.assertEqual(response.status_code, 200)
     response.close()
@@ -53,8 +54,8 @@ class TestOfFlaskApps(unittest.TestCase):
     self.assertEqual(response.status_code, 200)
     response.close()
 
-  @patch("flaskmain.Csv2redisClass", autospec = True)
-  def test_access2StaticImageFile(self, mock_c2r):
+  @patch("redis.Redis", return_value=mk_fakeredis)
+  def test_access2StaticImageFile(self, mock_redis):
     response = self.main.get("/svgmap/pngs/pin_yellow.png")
     self.assertEqual(response.status_code, 200)
     response.close()
@@ -62,17 +63,16 @@ class TestOfFlaskApps(unittest.TestCase):
     self.assertEqual(response.status_code, 200)
     response.close()
 
-  @patch("flaskmain.Csv2redisClass", autospec = True)
-  def test_access2LowResImageFile(self, mock_c2r):
-    with open("./flask/webApps/Container.svg", "r") as f:
-      mock_c2r.return_value.saveSvgMapTileN.return_value = f.read()
+  @patch("redis.Redis", return_value=fakeredis.FakeStrictRedis())
+  def test_access2LowResImageFile(self, mock_redis):
+    # with open("./flask/webApps/Container.svg", "r") as f:
+    #   mock_c2r.return_value.saveSvgMapTileN.return_value = f.read()
     response = self.main.get("/svgmap/temporary/svgMapTileDB.svg")
     self.assertEqual(response.status_code, 200)
     response.close()
 
-  @patch("flaskmain.getData", return_value=[{"lat":36, "lng":139, "hkey":"aaaaa,bbb,ccc", "data": "aaaaa,bbb,ccc"}])
-  @patch("flaskmain.Csv2redisClass", autospec = True)
-  def test_editPost(self, mock_c2r, mock_getData):
+  @patch("redis.Redis", return_value=fakeredis.FakeStrictRedis())
+  def test_editPost(self, mock_redis):
     postData = {"action": "ADD", "to": [{"latitude":36, "longitude":139, "metadata":"aaaaa,bbb"}]}
     response = self.main.post("/svgmap/editPoint", data=json.dumps(postData), content_type='application/json')
     self.assertEqual(response.status_code, 200)
