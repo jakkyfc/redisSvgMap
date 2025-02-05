@@ -87,7 +87,22 @@ class TestOfFlaskApps(unittest.TestCase):
     redisRegistJob.join()  # 登録スレッドが完了するまで待機
     self.assertEqual(self.mk_fakeredis.hlen("s2_D"), 1) # 1件データが登録されたか確認
     self.assertEqual(list(self.mk_fakeredis.hgetall("s2_D").keys())[0], b'3600010:13900010:aaaaa,bbb' )
-    
+
+  @patch("redis.Redis", return_value=mk_fakeredis)
+  def test_updatePoiSuccess(self, mock_redis):
+    # Shcemaの登録(事前作業)
+    postData = {'schema': ['title', 'metadata', 'latitude', 'longitude'], 'type': [2, 2, 1, 1], 'latCol': 2, 'lngCol': 3, 'titleCol': 0, 'idCol': -1, 'namespace': 's2_', 'name': 'sample', 'created': 1703751389604, 'defaultIcon': 8, 'defaultIconPath': 'pngs/pin_red_cross.png'}
+    response = self.main.post("/svgmap/buildLayer", data=json.dumps(postData), content_type='application/json')
+    response.close()
+    # ポイントの更新
+    postData = {"action": "MODIFY", "to": [{"latitude":36.0001, "longitude":139.0001, "metadata":"aaaaa,ccc"}], "from": [{"latitude":36.0001, "longitude":139.0001, "metadata":"aaaaa,bbb"}]}
+    response = self.main.post("/svgmap/s2_/editPoint", data=json.dumps(postData), content_type='application/json')
+    self.assertEqual(response.status_code, 200)
+
+    from flaskmain import redisRegistJob
+    redisRegistJob.join()  # 登録スレッドが完了するまで待機
+    self.assertEqual(self.mk_fakeredis.hlen("s2_D"), 1) # 1件データが登録されたか確認
+    self.assertEqual(list(self.mk_fakeredis.hgetall("s2_D").keys())[0], b'3600010:13900010:aaaaa,ccc' )
 
   @patch("flaskmain.Csv2redisClass", autospec = True)
   def test_access2svgFile_throwException(self, mock_c2r):
