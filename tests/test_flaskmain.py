@@ -31,10 +31,11 @@ class TestOfFlaskApps(unittest.TestCase):
   @patch("redis.Redis", return_value=mk_fakeredis)
   def test_buildLayer(self,mock_redis):
     # mock_c2r.return_value.registSchema.return_value = True
-    postData = {'schema': ['title', 'metadata', 'latitude', 'longitude'], 'type': [2, 2, 1, 1], 'latCol': 2, 'lngCol': 3, 'titleCol': 0, 'idCol': -1, 'namespace': 'abcdefg_', 'name': 'sample', 'created': 1703751389604, 'defaultIcon': 8, 'defaultIconPath': 'pngs/pin_red_cross.png'}
+    postData = {'schema': ['title', 'metadata', 'latitude', 'longitude'], 'type': [2, 2, 1, 1], 'latCol': 2, 'lngCol': 3, 'titleCol': 0, 'idCol': -1, 'namespace': 's3_', 'name': 'sample', 'created': 1703751389604, 'defaultIcon': 8, 'defaultIconPath': 'pngs/pin_red_cross.png'}
     response = self.main.post("/svgmap/buildLayer", data=json.dumps(postData), content_type='application/json')
     self.assertEqual(response.status_code, 200)
     self.assertEqual(response.data, b"OK")
+    self.assertEqual(pickle.loads(self.mk_fakeredis.get("s3_schema")), postData)
     response.close()
     # mock_c2r.return_value.registSchema.return_value = False
     response = self.main.post("/svgmap/buildLayer", data=json.dumps(postData), content_type='application/json')
@@ -71,26 +72,22 @@ class TestOfFlaskApps(unittest.TestCase):
     self.assertEqual(response.status_code, 200)
     response.close()
 
-  @patch("redis.Redis", return_value=fakeredis.FakeStrictRedis())
-  def test_editPost(self, mock_redis):
-    postData = {"action": "ADD", "to": [{"latitude":36, "longitude":139, "metadata":"aaaaa,bbb"}]}
-    response = self.main.post("/svgmap/editPoint", data=json.dumps(postData), content_type='application/json')
-    self.assertEqual(response.status_code, 200)
+  @patch("redis.Redis", return_value=mk_fakeredis)
+  def test_addPoi(self, mock_redis):
+    # Shcemaの登録(事前作業)
+    postData = {'schema': ['title', 'metadata', 'latitude', 'longitude'], 'type': [2, 2, 1, 1], 'latCol': 2, 'lngCol': 3, 'titleCol': 0, 'idCol': -1, 'namespace': 's2_', 'name': 'sample', 'created': 1703751389604, 'defaultIcon': 8, 'defaultIconPath': 'pngs/pin_red_cross.png'}
+    response = self.main.post("/svgmap/buildLayer", data=json.dumps(postData), content_type='application/json')
     response.close()
+    # ポイントの登録
+    postData = {"action": "ADD", "to": [{"latitude":36.0001, "longitude":139.0001, "metadata":"aaaaa,bbb"}]}
+    response = self.main.post("/svgmap/s2_/editPoint", data=json.dumps(postData), content_type='application/json')
+    self.assertEqual(response.status_code, 200)
 
-  def test_getData(self):
-    schemaObj = {
-        'schema':['Name:s', 'latitude', 'longitude'],
-        'type': [0,1,1],
-        "latCol": 1,
-        "lngCol": 2,
-        "titleCol": 0,
-        "idCol": -1,
-        "namespace": "test_",
-        "name": "default"
-    }
-    poiData = [{"latitude":36, "longitude":139, "metadata":"aaaaa,bbb"}]
-    print(getData(poiData, schemaObj))  # 何が正しい返り値か理解できてないため、未完成
+    from flaskmain import redisRegistJob
+    redisRegistJob.join()  # 登録スレッドが完了するまで待機
+    self.assertEqual(self.mk_fakeredis.hlen("s2_D"), 1) # 1件データが登録されたか確認
+    self.assertEqual(list(self.mk_fakeredis.hgetall("s2_D").keys())[0], b'3600010:13900010:aaaaa,bbb' )
+    
 
   @patch("flaskmain.Csv2redisClass", autospec = True)
   def test_access2svgFile_throwException(self, mock_c2r):
